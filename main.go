@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"time"
 )
@@ -110,7 +111,7 @@ type DrivingEvaluator struct {
 var driverIsland *goevolve.IslandEvolver = goevolve.NewIslandEvolver()
 
 func (eval *DrivingEvaluator) Evaluate(p *govirtual.Processor) int64 {
-	timePenalty := 100000 - (time.Now().UnixNano() - eval.RaceSession.StartTime) / (int64(time.Second) / 1000)
+	timePenalty := 1000000000000 - (time.Now().UnixNano()-eval.RaceSession.StartTime)
 	fmt.Println(timePenalty)
 	return timePenalty
 }
@@ -120,19 +121,19 @@ func GenerateProgram() string {
 }
 
 type RaceSession struct {
-	Heap             *govirtual.Memory
-	DeadChannel      *govirtual.ChannelTerminationCondition
+	Heap        *govirtual.Memory
+	DeadChannel *govirtual.ChannelTerminationCondition
 	//DieAfter         *govirtual.TimeTerminationCondition
-	NeedToSpawn      bool
-	Throttle         float32
-	SwitchState      int
-	Game             *GameInitMessage
-	Velocity         float64
-	LastPosition     float64
+	NeedToSpawn  bool
+	Throttle     float32
+	SwitchState  int
+	Game         *GameInitMessage
+	Velocity     float64
+	LastPosition float64
 	//DistanceTraveled float64
 	//Crashed          bool
 	//LapFinished      int
-	StartTime				 int64
+	StartTime int64
 }
 
 func NewRaceSession() *RaceSession {
@@ -350,11 +351,15 @@ func main() {
 				defer conn.Close()
 
 				err = bot_loop(session, conn, name, key)
-				fmt.Println("Again")
-				session.NeedToSpawn = false
 			}
 
 		}()
 	}
+	go func() {
+		for {
+			exec.Command("git", "pull").Run()
+			time.Sleep(60 * time.Second)
+		}
+	}()
 	<-make(chan bool, 0)
 }
