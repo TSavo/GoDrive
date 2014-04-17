@@ -8,8 +8,8 @@ import (
 	. "github.com/TSavo/GoDrive/messages"
 	"github.com/TSavo/GoEvolve"
 	"github.com/TSavo/GoVirtual"
+	"io/ioutil"
 	"log"
-	"math"
 	"net"
 	"os"
 	"strconv"
@@ -69,107 +69,18 @@ func send_throttle(writer *bufio.Writer, throttle float32) (err error) {
 	return
 }
 
-func DefineInstructions(throttle *float32) (i *govirtual.InstructionSet) {
+func switch_left(writer *bufio.Writer) (err error) {
+	err = write_msg(writer, "switchLane", "Left")
+	return
+}
+func switch_right(writer *bufio.Writer) (err error) {
+	err = write_msg(writer, "switchLane", "Right")
+	return
+}
+
+func DefineInstructions(throttle *float32, sw *int) (i *govirtual.InstructionSet) {
 	i = govirtual.NewInstructionSet()
-	i.Instruction("noop", func(p *govirtual.Processor, m *govirtual.Memory) {
-	})
-	i.Movement("jump", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Jump(m.Get(0))
-	})
-	i.Movement("jumpIfZero", func(p *govirtual.Processor, m *govirtual.Memory) {
-		if p.Registers.Get((*m).Get(0)) == 0 {
-			p.Jump(m.Get(1))
-		} else {
-			p.InstructionPointer++
-		}
-	})
-	i.Movement("jumpIfNotZero", func(p *govirtual.Processor, m *govirtual.Memory) {
-		if p.Registers.Get((*m).Get(0)) != 0 {
-			p.Jump(m.Get(1))
-		} else {
-			p.InstructionPointer++
-		}
-	})
-	i.Movement("jumpIfEquals", func(p *govirtual.Processor, m *govirtual.Memory) {
-		if p.Registers.Get((*m).Get(0)) == p.Registers.Get((*m).Get(1)) {
-			p.Jump(m.Get(2))
-		} else {
-			p.InstructionPointer++
-		}
-	})
-	i.Movement("jumpIfNotEquals", func(p *govirtual.Processor, m *govirtual.Memory) {
-		if p.Registers.Get((*m).Get(0)) != p.Registers.Get((*m).Get(1)) {
-			p.Jump(m.Get(2))
-		} else {
-			p.InstructionPointer++
-		}
-	})
-	i.Movement("jumpIfGreaterThan", func(p *govirtual.Processor, m *govirtual.Memory) {
-		if p.Registers.Get((*m).Get(0)) > p.Registers.Get((*m).Get(1)) {
-			p.Jump(m.Get(2))
-		} else {
-			p.InstructionPointer++
-		}
-	})
-	i.Movement("jumpIfLessThan", func(p *govirtual.Processor, m *govirtual.Memory) {
-		if p.Registers.Get((*m).Get(0)) < p.Registers.Get((*m).Get(1)) {
-			p.Jump(m.Get(2))
-		} else {
-			p.InstructionPointer++
-		}
-	})
-	i.Movement("call", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Call((*m).Get(0))
-	})
-	i.Movement("return", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Return()
-	})
-	i.Instruction("set", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Registers.Set((*m).Get(0), (*m).Get(1))
-	})
-	i.Instruction("store", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Heap.Set(m.Get(0), p.Registers.Get(m.Get(1)))
-	})
-	i.Instruction("load", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Registers.Set(m.Get(0), p.Heap.Get(m.Get(1)))
-	})
-	i.Instruction("swap", func(p *govirtual.Processor, m *govirtual.Memory) {
-		x := p.Registers.Get((*m).Get(0))
-		p.Registers.Set((*m).Get(0), (*m).Get(1))
-		p.Registers.Set((*m).Get(1), x)
-	})
-	i.Instruction("push", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Stack.Push(p.Registers.Get((*m).Get(0)))
-	})
-	i.Instruction("pop", func(p *govirtual.Processor, m *govirtual.Memory) {
-		if x, err := p.Stack.Pop(); !err {
-			p.Registers.Set((*m).Get(0), x)
-		}
-	})
-	i.Instruction("increment", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Registers.Increment((*m).Get(0))
-	})
-	i.Instruction("decrement", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Registers.Decrement((*m).Get(0))
-	})
-	i.Instruction("add", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Registers.Set((*m).Get(0), p.Registers.Get((*m).Get(0))+p.Registers.Get((*m).Get(1)))
-	})
-	i.Instruction("subtract", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.Registers.Set((*m).Get(0), p.Registers.Get((*m).Get(0))-p.Registers.Get((*m).Get(1)))
-	})
-	i.Instruction("speedUp", func(p *govirtual.Processor, m *govirtual.Memory) {
-		*throttle += 0.01
-		if *throttle > 1 {
-			*throttle = 1
-		}
-	})
-	i.Instruction("slowDown", func(p *govirtual.Processor, m *govirtual.Memory) {
-		*throttle -= 0.01
-		if *throttle < 0 {
-			*throttle = 0
-		}
-	})
+	govirtual.EmulationInstructions(i)
 	i.Instruction("setThrottle", func(p *govirtual.Processor, m *govirtual.Memory) {
 		*throttle = float32(p.Registers.Get(m.Get(0))) / 1000.0
 		if *throttle < 0 {
@@ -179,163 +90,29 @@ func DefineInstructions(throttle *float32) (i *govirtual.InstructionSet) {
 			*throttle = 1
 		}
 	})
-
-	//	AddMathInstructions(i)
+	i.Instruction("switchLeft", func(p *govirtual.Processor, m *govirtual.Memory) {
+		*sw = -1
+	})
+	i.Instruction("switchRight", func(p *govirtual.Processor, m *govirtual.Memory) {
+		*sw = 1
+	})
+	i.Instruction("dontSwitch", func(p *govirtual.Processor, m *govirtual.Memory) {
+		*sw = 0
+	})
 
 	return
 }
-
-func AddMathInstructions(is *govirtual.InstructionSet) {
-	is.Instruction("floatAdd", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), p.FloatHeap.Get(m.Get(0))+p.FloatHeap.Get(m.Get(1)))
-	})
-	is.Instruction("floatSubtract", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), p.FloatHeap.Get(m.Get(0))-p.FloatHeap.Get(m.Get(1)))
-	})
-	is.Instruction("floatMultiply", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), p.FloatHeap.Get(m.Get(0))*p.FloatHeap.Get(m.Get(1)))
-	})
-	is.Instruction("floatDivide", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), p.FloatHeap.Get(m.Get(0))/p.FloatHeap.Get(m.Get(1)))
-	})
-	is.Instruction("floatSet", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(0), float64(m.Get(1))*0.0000001)
-	})
-	is.Instruction("floatCopy", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), p.FloatHeap.Get(m.Get(0)))
-	})
-	is.Instruction("floatAbs", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Abs(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatAcos", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Acos(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatAcosh", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Acosh(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatAsin", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Asin(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatAsinh", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Asinh(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatCbrt", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Cbrt(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatCeil", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Ceil(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatCos", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Cos(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatDim", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), math.Dim(p.FloatHeap.Get(m.Get(0)), math.Abs(p.FloatHeap.Get(m.Get(1)))))
-	})
-	is.Instruction("floatErf", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Erf(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatExp", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Exp(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatExp2", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Exp2(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatExpm1", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Abs(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatFloor", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Floor(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatGamma", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Gamma(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatHypot", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), math.Hypot(p.FloatHeap.Get(m.Get(0)), math.Abs(p.FloatHeap.Get(m.Get(1)))))
-	})
-	is.Instruction("floatJ0", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.J0(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatJ1", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.J1(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatLog", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Log(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatLog10", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Log10(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatLog1p", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Log1p(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatLog2", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Log2(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatLogb", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Logb(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatMax", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), math.Max(p.FloatHeap.Get(m.Get(0)), p.FloatHeap.Get(m.Get(1))))
-	})
-	is.Instruction("floatMin", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), math.Min(p.FloatHeap.Get(m.Get(0)), p.FloatHeap.Get(m.Get(1))))
-	})
-	is.Instruction("floatMod", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), math.Mod(p.FloatHeap.Get(m.Get(0)), p.FloatHeap.Get(m.Get(1))))
-	})
-	is.Instruction("floatNextAfter", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), math.Nextafter(p.FloatHeap.Get(m.Get(0)), p.FloatHeap.Get(m.Get(1))))
-	})
-	is.Instruction("floatPow", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), math.Pow(p.FloatHeap.Get(m.Get(0)), p.FloatHeap.Get(m.Get(1))))
-	})
-	is.Instruction("floatRemainder", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(2), math.Remainder(p.FloatHeap.Get(m.Get(0)), p.FloatHeap.Get(m.Get(1))))
-	})
-	is.Instruction("floatSin", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Sin(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatSinh", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Sinh(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatSqrt", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Sqrt(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatTan", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Tan(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatTanh", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Tanh(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatTrunc", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Trunc(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatY0", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Y0(p.FloatHeap.Get(m.Get(0))))
-	})
-	is.Instruction("floatY1", func(p *govirtual.Processor, m *govirtual.Memory) {
-		p.FloatHeap.Set(m.Get(1), math.Y1(p.FloatHeap.Get(m.Get(0))))
-	})
-}
-
-var accTimingDone = false
 
 type DrivingEvaluator struct {
 	RaceSession *RaceSession
 }
 
-var driverIsland *goevolve.IslandEvolver = goevolve.NewIslandEvolver(3)
+var driverIsland *goevolve.IslandEvolver = goevolve.NewIslandEvolver()
 
 func (eval *DrivingEvaluator) Evaluate(p *govirtual.Processor) int64 {
-	x := eval.RaceSession.DistanceTraveled
-	eval.RaceSession.DistanceTraveled = 0.0
-	if eval.RaceSession.Crashed {
-		fmt.Println("Crashed!")
-		eval.RaceSession.Crashed = false
-		fmt.Println(int64(x / 100))
-		return int64(x / 100)
-	}
-	fmt.Println(int64(x))
-	return int64(x)
+	timePenalty := 100000 - (time.Now().UnixNano() - eval.RaceSession.StartTime) / (int64(time.Second) / 1000)
+	fmt.Println(timePenalty)
+	return timePenalty
 }
 
 func GenerateProgram() string {
@@ -345,48 +122,53 @@ func GenerateProgram() string {
 type RaceSession struct {
 	Heap             *govirtual.Memory
 	DeadChannel      *govirtual.ChannelTerminationCondition
-	DieAfter         *govirtual.TimeTerminationCondition
+	//DieAfter         *govirtual.TimeTerminationCondition
 	NeedToSpawn      bool
 	Throttle         float32
+	SwitchState      int
 	Game             *GameInitMessage
 	Velocity         float64
 	LastPosition     float64
-	DistanceTraveled float64
-	Crashed          bool
+	//DistanceTraveled float64
+	//Crashed          bool
+	//LapFinished      int
+	StartTime				 int64
 }
 
 func NewRaceSession() *RaceSession {
-	heap := make(govirtual.Memory, 20)
+	heap := make(govirtual.Memory, 30)
 	deadChannel := govirtual.NewChannelTerminationCondition()
-	timeTerminationCondition := govirtual.NewTimeTerminationCondition(10 * time.Second)
-	race := RaceSession{&heap, deadChannel, timeTerminationCondition, false, 0.1, nil, 0.0, 0.0, 0.0, false}
+	race := RaceSession{&heap, deadChannel, false, 0.1, 0, nil, 0.0, 0.0, time.Now().UnixNano()}
 	return &race
 }
 
-func (session *RaceSession) Crash() {
-	session.Crashed = true
-	session.NeedToSpawn = true
+func (session *RaceSession) NextDriver() {
 	*session.DeadChannel <- true
 }
 
 func (session *RaceSession) Spawn() {
 	session.NeedToSpawn = false
-	session.DieAfter.Reset()
+	//session.DieAfter.Reset()
 }
 
 func (session *RaceSession) StartSimulation() {
-	is := DefineInstructions(&session.Throttle)
-	terminationCondition := govirtual.OrTerminate(session.DeadChannel, session.DieAfter)
-	breeder := *goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(15), goevolve.NewRandomBreeder(25, 50, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
+	is := DefineInstructions(&session.Throttle, &session.SwitchState)
+	//terminationCondition := govirtual.OrTerminate(session.DeadChannel, session.DieAfter)
+	breeder := *goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(15), goevolve.NewRandomBreeder(25, 100, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
 	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(10))
 	drivingEval := &DrivingEvaluator{session}
-	driverIsland.AddPopulation(session.Heap, nil, 8, is, terminationCondition, breeder, drivingEval, selector)
+	driverIsland.AddPopulation(session.Heap, nil, 8, is, session.DeadChannel, breeder, drivingEval, selector)
 }
 
 type DriverProgramGenerator struct{}
 
 func (d *DriverProgramGenerator) Breed(seeds []string) []string {
 	m := make([]string, 1)
+	dat, err := ioutil.ReadFile("bestProgram.vm")
+	if err == nil {
+		m[0] = string(dat)
+		return m
+	}
 	for i := 0; i < len(m); i++ {
 		m[i] = `
 set 0,100
@@ -413,7 +195,7 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		log.Printf("%v", msg)
 		send_ping(writer)
 	case "crash":
-		session.Crash()
+		//session.Crash()
 		send_ping(writer)
 	case "spawn":
 		session.Spawn()
@@ -421,35 +203,37 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 	case "gameEnd":
 		log.Printf("Game ended")
 		err = errors.New("Game ended")
+		session.NextDriver()
 		return
 	case "carPositions":
-		if session.NeedToSpawn {
-			session.DieAfter.Reset()
-		}
 		var position CarPositionMessage
 		json.Unmarshal([]byte(msg), &position)
 		//angle := position.Data[0].Angle
 		piece := session.Game.Data.Race.Track.Pieces[position.Data[0].PiecePosition.PieceIndex]
 		nextPiece := session.Game.Data.Race.Track.Pieces[(position.Data[0].PiecePosition.PieceIndex+1)%len(session.Game.Data.Race.Track.Pieces)]
-		lastVelocity := session.Velocity
+		pieceAfter := session.Game.Data.Race.Track.Pieces[(position.Data[0].PiecePosition.PieceIndex+2)%len(session.Game.Data.Race.Track.Pieces)]
 		session.Velocity = position.Data[0].PiecePosition.InPieceDistance - session.LastPosition
 		session.LastPosition = position.Data[0].PiecePosition.InPieceDistance
-		if session.Velocity > 0 {
-			session.DistanceTraveled += session.Velocity
-			//fmt.Printf("%v %v\n", velocity, acceleration) //, angle, position.Data[0].PiecePosition.PieceIndex, piece)
-		} else {
-			session.Velocity = lastVelocity
+		(*session.Heap)[0] = int(session.Throttle * 1000)
+		(*session.Heap)[1] = int(session.Velocity * 1000)
+		(*session.Heap)[2] = int(position.Data[0].Angle)
+		(*session.Heap)[3] = int(position.Data[0].PiecePosition.InPieceDistance)
+		(*session.Heap)[4] = int(position.Data[0].PiecePosition.PieceIndex)
+		(*session.Heap)[5] = int(piece.Length)
+		(*session.Heap)[6] = int(piece.Angle)
+		(*session.Heap)[7] = int(piece.Radius)
+		(*session.Heap)[8] = int(nextPiece.Length)
+		(*session.Heap)[9] = int(nextPiece.Angle)
+		(*session.Heap)[10] = int(nextPiece.Radius)
+		(*session.Heap)[11] = int(pieceAfter.Length)
+		(*session.Heap)[12] = int(pieceAfter.Angle)
+		(*session.Heap)[13] = int(pieceAfter.Radius)
+		if session.SwitchState == -1 {
+			switch_left(writer)
+		} else if session.SwitchState == 1 {
+			switch_right(writer)
 		}
-		(*session.Heap)[0] = int(session.Velocity * 100)
-		(*session.Heap)[1] = int(position.Data[0].Angle)
-		(*session.Heap)[2] = int(position.Data[0].PiecePosition.InPieceDistance)
-		(*session.Heap)[3] = int(piece.Length)
-		(*session.Heap)[4] = int(piece.Angle)
-		(*session.Heap)[5] = int(piece.Radius)
-		(*session.Heap)[6] = int(nextPiece.Length)
-		(*session.Heap)[7] = int(nextPiece.Angle)
-		(*session.Heap)[8] = int(nextPiece.Radius)
-
+		session.SwitchState = 0
 		send_throttle(writer, session.Throttle)
 	case "error":
 		log.Printf(fmt.Sprintf("Got error: %v", data))
@@ -458,6 +242,9 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		game := new(GameInitMessage)
 		json.Unmarshal([]byte(msg), &game)
 		session.Game = game
+		send_ping(writer)
+		session.StartTime = time.Now().UnixNano()
+	case "lapFinished":
 		send_ping(writer)
 	default:
 		log.Printf("Got msg type: %s: %v", msgtype, data)
@@ -542,6 +329,7 @@ func main() {
 
 	if err != nil {
 		log_and_exit(err)
+		return
 	}
 
 	fmt.Println("Connecting with parameters:")
@@ -568,5 +356,5 @@ func main() {
 
 		}()
 	}
-	<- make(chan bool, 0)
+	<-make(chan bool, 0)
 }
