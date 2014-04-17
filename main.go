@@ -69,7 +69,7 @@ func send_throttle(writer *bufio.Writer, throttle float32) (err error) {
 	return
 }
 
-func DefineInstructions(lookAhead *int, throttle *float32) (i *govirtual.InstructionSet) {
+func DefineInstructions(throttle *float32) (i *govirtual.InstructionSet) {
 	i = govirtual.NewInstructionSet()
 	i.Instruction("noop", func(p *govirtual.Processor, m *govirtual.Memory) {
 	})
@@ -159,7 +159,6 @@ func DefineInstructions(lookAhead *int, throttle *float32) (i *govirtual.Instruc
 		p.Registers.Set((*m).Get(0), p.Registers.Get((*m).Get(0))-p.Registers.Get((*m).Get(1)))
 	})
 	i.Instruction("speedUp", func(p *govirtual.Processor, m *govirtual.Memory) {
-		fmt.Println(*throttle)
 		*throttle += 0.01
 		if *throttle > 1 {
 			*throttle = 1
@@ -171,8 +170,17 @@ func DefineInstructions(lookAhead *int, throttle *float32) (i *govirtual.Instruc
 			*throttle = 0
 		}
 	})
+	i.Instruction("setThrottle", func(p *govirtual.Processor, m *govirtual.Memory) {
+		*throttle = float32(p.Registers.Get(m.Get(0))) / 1000.0
+		if *throttle < 0 {
+			*throttle = 0
+		}
+		if *throttle > 1 {
+			*throttle = 1
+		}
+	})
 
-//	AddMathInstructions(i)
+	//	AddMathInstructions(i)
 
 	return
 }
@@ -309,31 +317,24 @@ func AddMathInstructions(is *govirtual.InstructionSet) {
 	})
 }
 
-var lastAngle = 0
-var throttle = float32(0.1)
-var game GameInitMessage
-var velocity = 0.0
-var lastPosition = 0.0
-var distanceTraveled = 0.0
-var crashed = false
-
 var accTimingDone = false
 
-type DrivingEvaluator struct{}
+type DrivingEvaluator struct {
+	RaceSession *RaceSession
+}
 
 var driverIsland *goevolve.IslandEvolver = goevolve.NewIslandEvolver(3)
 
 func (eval *DrivingEvaluator) Evaluate(p *govirtual.Processor) int64 {
-	x := distanceTraveled
-	distanceTraveled = 0.0
-	throttle = 0.1
-	timeTerminationCondition.Reset()
-	if crashed {
-		crashed = false
-		fmt.Println("Crashed! No reward.")
-		return 0
+	x := eval.RaceSession.DistanceTraveled
+	eval.RaceSession.DistanceTraveled = 0.0
+	if eval.RaceSession.Crashed {
+		fmt.Println("Crashed!")
+		eval.RaceSession.Crashed = false
+		fmt.Println(int64(x / 100))
+		return int64(x / 100)
 	}
-	fmt.Println(x)
+	fmt.Println(int64(x))
 	return int64(x)
 }
 
@@ -341,58 +342,69 @@ func GenerateProgram() string {
 	return ""
 }
 
-var populationInfluxChan goevolve.InfluxBreeder = make(goevolve.InfluxBreeder, 100)
-var PopulationReportChan chan *goevolve.PopulationReport = make(chan *goevolve.PopulationReport, 100)
-
-var lookAhead int
-var heap = make(govirtual.Memory, 20)
-var floatHeap = make(govirtual.FloatMemory, 8)
-var deadChannel = govirtual.NewChannelTerminationCondition()
-var timeTerminationCondition = govirtual.NewTimeTerminationCondition(10 * time.Second)
-var restart func()
-var needToSpawn = false
-
-func StartSimulation() {
-	is := DefineInstructions(&lookAhead, &throttle)
-	terminationCondition := govirtual.OrTerminate(deadChannel, timeTerminationCondition)
-	breeder := *goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(15), goevolve.NewRandomBreeder(25, 50, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
-	divingEval := new(DrivingEvaluator)
-	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(10))
-	driverIsland.AddPopulation(&heap, &floatHeap, 8, is, terminationCondition, breeder, divingEval, selector)
+type RaceSession struct {
+	Heap             *govirtual.Memory
+	DeadChannel      *govirtual.ChannelTerminationCondition
+	DieAfter         *govirtual.TimeTerminationCondition
+	NeedToSpawn      bool
+	Throttle         float32
+	Game             *GameInitMessage
+	Velocity         float64
+	LastPosition     float64
+	DistanceTraveled float64
+	Crashed          bool
 }
 
-type DriverProgramGenerator struct {}
+func NewRaceSession() *RaceSession {
+	heap := make(govirtual.Memory, 20)
+	deadChannel := govirtual.NewChannelTerminationCondition()
+	timeTerminationCondition := govirtual.NewTimeTerminationCondition(10 * time.Second)
+	race := RaceSession{&heap, deadChannel, timeTerminationCondition, false, 0.1, nil, 0.0, 0.0, 0.0, false}
+	return &race
+}
+
+func (session *RaceSession) Crash() {
+	session.Crashed = true
+	session.NeedToSpawn = true
+	*session.DeadChannel <- true
+}
+
+func (session *RaceSession) Spawn() {
+	session.NeedToSpawn = false
+	session.DieAfter.Reset()
+}
+
+func (session *RaceSession) StartSimulation() {
+	is := DefineInstructions(&session.Throttle)
+	terminationCondition := govirtual.OrTerminate(session.DeadChannel, session.DieAfter)
+	breeder := *goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(15), goevolve.NewRandomBreeder(25, 50, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
+	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(10))
+	drivingEval := &DrivingEvaluator{session}
+	driverIsland.AddPopulation(session.Heap, nil, 8, is, terminationCondition, breeder, drivingEval, selector)
+}
+
+type DriverProgramGenerator struct{}
 
 func (d *DriverProgramGenerator) Breed(seeds []string) []string {
 	m := make([]string, 1)
 	for i := 0; i < len(m); i++ {
 		m[i] = `
-speedUp
-speedUp
-speedUp
-speedUp
-speedUp
-speedUp
-speedUp
-speedUp
-speedUp
-speedUp
-speedUp
-speedUp
-jump 13
+set 0,100
+setThrottle 0
+jump 7
 noop
 noop
 noop
 noop
 noop
 noop
-jump 13		
+jump 7		
 `
 	}
 	return m
 }
 
-func dispatch_msg(writer *bufio.Writer, msgtype string, data interface{}, msg string) (err error) {
+func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data interface{}, msg string) (err error) {
 	switch msgtype {
 	case "join":
 		log.Printf("Joined")
@@ -401,59 +413,51 @@ func dispatch_msg(writer *bufio.Writer, msgtype string, data interface{}, msg st
 		log.Printf("%v", msg)
 		send_ping(writer)
 	case "crash":
-		log.Printf("%v", data)
-		crashed = true
-		(*deadChannel) <- true
-		fmt.Println("Crash message recieved")
-		needToSpawn = true
+		session.Crash()
 		send_ping(writer)
 	case "spawn":
-		needToSpawn = false
-		fmt.Println("Spawn message recieved")
-		timeTerminationCondition.Reset()
+		session.Spawn()
 		send_ping(writer)
 	case "gameEnd":
 		log.Printf("Game ended")
 		err = errors.New("Game ended")
 		return
-		// Exit is not strictly necessary?
-		//os.Exit(0)
-//		restart()
 	case "carPositions":
-		if(needToSpawn) {
-			timeTerminationCondition.Reset()
+		if session.NeedToSpawn {
+			session.DieAfter.Reset()
 		}
 		var position CarPositionMessage
 		json.Unmarshal([]byte(msg), &position)
 		//angle := position.Data[0].Angle
-		piece := game.Data.Race.Track.Pieces[position.Data[0].PiecePosition.PieceIndex]
-		nextPiece := game.Data.Race.Track.Pieces[(position.Data[0].PiecePosition.PieceIndex + 1) % len(game.Data.Race.Track.Pieces)]
-		lastVelocity := velocity
-		velocity = position.Data[0].PiecePosition.InPieceDistance - lastPosition
-		//acceleration := velocity - lastVelocity
-		lastPosition = position.Data[0].PiecePosition.InPieceDistance
-		if velocity > 0 {
-			distanceTraveled += velocity
+		piece := session.Game.Data.Race.Track.Pieces[position.Data[0].PiecePosition.PieceIndex]
+		nextPiece := session.Game.Data.Race.Track.Pieces[(position.Data[0].PiecePosition.PieceIndex+1)%len(session.Game.Data.Race.Track.Pieces)]
+		lastVelocity := session.Velocity
+		session.Velocity = position.Data[0].PiecePosition.InPieceDistance - session.LastPosition
+		session.LastPosition = position.Data[0].PiecePosition.InPieceDistance
+		if session.Velocity > 0 {
+			session.DistanceTraveled += session.Velocity
 			//fmt.Printf("%v %v\n", velocity, acceleration) //, angle, position.Data[0].PiecePosition.PieceIndex, piece)
 		} else {
-			velocity = lastVelocity
+			session.Velocity = lastVelocity
 		}
-		heap[0] = int(velocity * 100)
-		heap[1] = int(position.Data[0].Angle)
-		heap[2] = int(position.Data[0].PiecePosition.InPieceDistance)
-		heap[3] = int(piece.Length)
-		heap[4] = int(piece.Angle)
-		heap[5] = int(piece.Radius)
-		heap[6] = int(nextPiece.Length)
-		heap[7] = int(nextPiece.Angle)
-		heap[8] = int(nextPiece.Radius)
+		(*session.Heap)[0] = int(session.Velocity * 100)
+		(*session.Heap)[1] = int(position.Data[0].Angle)
+		(*session.Heap)[2] = int(position.Data[0].PiecePosition.InPieceDistance)
+		(*session.Heap)[3] = int(piece.Length)
+		(*session.Heap)[4] = int(piece.Angle)
+		(*session.Heap)[5] = int(piece.Radius)
+		(*session.Heap)[6] = int(nextPiece.Length)
+		(*session.Heap)[7] = int(nextPiece.Angle)
+		(*session.Heap)[8] = int(nextPiece.Radius)
 
-		send_throttle(writer, throttle)
+		send_throttle(writer, session.Throttle)
 	case "error":
 		log.Printf(fmt.Sprintf("Got error: %v", data))
 		send_ping(writer)
 	case "gameInit":
+		game := new(GameInitMessage)
 		json.Unmarshal([]byte(msg), &game)
+		session.Game = game
 		send_ping(writer)
 	default:
 		log.Printf("Got msg type: %s: %v", msgtype, data)
@@ -462,7 +466,7 @@ func dispatch_msg(writer *bufio.Writer, msgtype string, data interface{}, msg st
 	return
 }
 
-func parse_and_dispatch_input(writer *bufio.Writer, input interface{}, message string) (err error) {
+func parse_and_dispatch_input(session *RaceSession, writer *bufio.Writer, input interface{}, message string) (err error) {
 	switch t := input.(type) {
 	default:
 		err = errors.New(fmt.Sprintf("Invalid message type: %T", t))
@@ -477,12 +481,12 @@ func parse_and_dispatch_input(writer *bufio.Writer, input interface{}, message s
 		}
 		switch msg["data"].(type) {
 		default:
-			err = dispatch_msg(writer, msg["msgType"].(string), nil, message)
+			err = session.Dispatch(writer, msg["msgType"].(string), nil, message)
 			if err != nil {
 				return
 			}
 		case interface{}:
-			err = dispatch_msg(writer, msg["msgType"].(string), msg["data"].(interface{}), message)
+			err = session.Dispatch(writer, msg["msgType"].(string), msg["data"].(interface{}), message)
 			if err != nil {
 				return
 			}
@@ -491,7 +495,7 @@ func parse_and_dispatch_input(writer *bufio.Writer, input interface{}, message s
 	return
 }
 
-func bot_loop(conn net.Conn, name string, key string) (err error) {
+func bot_loop(session *RaceSession, conn net.Conn, name string, key string) (err error) {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 	defer recover()
@@ -502,7 +506,7 @@ func bot_loop(conn net.Conn, name string, key string) (err error) {
 			log_and_exit(err)
 			return nil
 		}
-		err = parse_and_dispatch_input(writer, input, msg)
+		err = parse_and_dispatch_input(session, writer, input, msg)
 		if err != nil {
 			log_and_exit(err)
 			return nil
@@ -543,18 +547,26 @@ func main() {
 	fmt.Println("Connecting with parameters:")
 	fmt.Printf("host=%v, port=%v, bot name=%v, key=%v\n", host, port, name, key)
 
-	StartSimulation()
+	for x := 0; x < 10; x++ {
+		go func() {
+			session := NewRaceSession()
+			session.StartSimulation()
 
-	for {
-		conn, err := connect(host, port)
+			for {
+				conn, err := connect(host, port)
 
-		if err != nil {
-			log_and_exit(err)
-		}
+				if err != nil {
+					log_and_exit(err)
+				}
 
-		defer conn.Close()
+				defer conn.Close()
 
-		err = bot_loop(conn, name, key)
-		fmt.Println("Again")
+				err = bot_loop(session, conn, name, key)
+				fmt.Println("Again")
+				session.NeedToSpawn = false
+			}
+
+		}()
 	}
+	<- make(chan bool, 0)
 }
