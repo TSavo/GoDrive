@@ -111,45 +111,32 @@ type DrivingEvaluator struct {
 var driverIsland *goevolve.IslandEvolver = goevolve.NewIslandEvolver()
 
 func (eval *DrivingEvaluator) Evaluate(p *govirtual.Processor) int64 {
-	timePenalty := 1000000000000 - (time.Now().UnixNano()-eval.RaceSession.StartTime)
+	timePenalty := eval.RaceSession.ElapsedTicks * -1
 	fmt.Println(timePenalty)
 	return timePenalty
 }
 
-func GenerateProgram() string {
-	return ""
-}
-
 type RaceSession struct {
-	Heap        *govirtual.Memory
-	DeadChannel *govirtual.ChannelTerminationCondition
-	//DieAfter         *govirtual.TimeTerminationCondition
-	NeedToSpawn  bool
+	Heap         *govirtual.Memory
+	DeadChannel  *govirtual.ChannelTerminationCondition
 	Throttle     float32
 	SwitchState  int
 	Game         *GameInitMessage
 	Velocity     float64
 	LastPosition float64
-	//DistanceTraveled float64
-	//Crashed          bool
-	//LapFinished      int
-	StartTime int64
+	StartTime    int64
+	ElapsedTicks int64
 }
 
 func NewRaceSession() *RaceSession {
 	heap := make(govirtual.Memory, 30)
 	deadChannel := govirtual.NewChannelTerminationCondition()
-	race := RaceSession{&heap, deadChannel, false, 0.1, 0, nil, 0.0, 0.0, time.Now().UnixNano()}
+	race := RaceSession{&heap, deadChannel, 0.1, 0, nil, 0.0, 0.0, time.Now().UnixNano(), 0}
 	return &race
 }
 
 func (session *RaceSession) NextDriver() {
 	*session.DeadChannel <- true
-}
-
-func (session *RaceSession) Spawn() {
-	session.NeedToSpawn = false
-	//session.DieAfter.Reset()
 }
 
 func (session *RaceSession) StartSimulation() {
@@ -164,27 +151,11 @@ func (session *RaceSession) StartSimulation() {
 type DriverProgramGenerator struct{}
 
 func (d *DriverProgramGenerator) Breed(seeds []string) []string {
-	m := make([]string, 1)
 	dat, err := ioutil.ReadFile("bestProgram.vm")
 	if err == nil {
-		m[0] = string(dat)
-		return m
+		return []string{string(dat)}
 	}
-	for i := 0; i < len(m); i++ {
-		m[i] = `
-set 0,100
-setThrottle 0
-jump 7
-noop
-noop
-noop
-noop
-noop
-noop
-jump 7		
-`
-	}
-	return m
+	return nil
 }
 
 func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data interface{}, msg string) (err error) {
@@ -199,11 +170,15 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		//session.Crash()
 		send_ping(writer)
 	case "spawn":
-		session.Spawn()
 		send_ping(writer)
 	case "gameEnd":
-		log.Printf("Game ended")
+		var gameEnd GameEndMessage
+		json.Unmarshal([]byte(msg), &gameEnd)
 		err = errors.New("Game ended")
+		session.ElapsedTicks = int64(gameEnd.Data.Results[0].Result.Ticks)
+		if session.ElapsedTicks == 0 {
+			session.ElapsedTicks = 1000000000
+		}
 		session.NextDriver()
 		return
 	case "carPositions":
@@ -243,8 +218,8 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		game := new(GameInitMessage)
 		json.Unmarshal([]byte(msg), &game)
 		session.Game = game
+		session.Throttle = 0
 		send_ping(writer)
-		session.StartTime = time.Now().UnixNano()
 	case "lapFinished":
 		send_ping(writer)
 	default:
@@ -254,7 +229,7 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 	return
 }
 
-func parse_and_dispatch_input(session *RaceSession, writer *bufio.Writer, input interface{}, message string) (err error) {
+func (session *RaceSession) parse_and_dispatch_input(writer *bufio.Writer, input interface{}, message string) (err error) {
 	switch t := input.(type) {
 	default:
 		err = errors.New(fmt.Sprintf("Invalid message type: %T", t))
@@ -283,7 +258,7 @@ func parse_and_dispatch_input(session *RaceSession, writer *bufio.Writer, input 
 	return
 }
 
-func bot_loop(session *RaceSession, conn net.Conn, name string, key string) (err error) {
+func (session *RaceSession) bot_loop(conn net.Conn, name string, key string) (err error) {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 	defer recover()
@@ -294,7 +269,7 @@ func bot_loop(session *RaceSession, conn net.Conn, name string, key string) (err
 			log_and_exit(err)
 			return nil
 		}
-		err = parse_and_dispatch_input(session, writer, input, msg)
+		err = session.parse_and_dispatch_input(writer, input, msg)
 		if err != nil {
 			log_and_exit(err)
 			return nil
@@ -320,7 +295,7 @@ func parse_args() (host string, port int, name string, key string, err error) {
 
 func log_and_exit(err error) {
 	//log.Fatal(err)
-	fmt.Println("log and exit", err)
+	fmt.Println(err)
 	//os.Exit(1)
 }
 
@@ -336,7 +311,7 @@ func main() {
 	fmt.Println("Connecting with parameters:")
 	fmt.Printf("host=%v, port=%v, bot name=%v, key=%v\n", host, port, name, key)
 
-	for x := 0; x < 10; x++ {
+	for x := 0; x < 5; x++ {
 		go func() {
 			session := NewRaceSession()
 			session.StartSimulation()
@@ -350,14 +325,15 @@ func main() {
 
 				defer conn.Close()
 
-				err = bot_loop(session, conn, name, key)
+				err = session.bot_loop(conn, name, key)
 			}
 
 		}()
 	}
 	go func() {
 		for {
-			exec.Command("git", "pull").Run()
+			out, _ := exec.Command("git", "pull").Output()
+			fmt.Printf("Git: %v", string(out))
 			time.Sleep(60 * time.Second)
 		}
 	}()
