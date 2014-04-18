@@ -112,6 +112,9 @@ var driverIsland *goevolve.IslandEvolver = goevolve.NewIslandEvolver()
 
 func (eval *DrivingEvaluator) Evaluate(p *govirtual.Processor) int64 {
 	timePenalty := eval.RaceSession.ElapsedTicks * -1
+	if timePenalty == 0 {
+		timePenalty = -10000000000
+	}
 	fmt.Println(timePenalty)
 	return timePenalty
 }
@@ -126,12 +129,28 @@ type RaceSession struct {
 	LastPosition float64
 	StartTime    int64
 	ElapsedTicks int64
+	NeedsToDie   bool
+}
+
+type DieAfterCondition struct {
+	RaceSession *RaceSession
+}
+
+func (dieAfter *DieAfterCondition) ShouldTerminate(p *govirtual.Processor) bool {
+	if dieAfter.RaceSession.Throttle < 0.00001 && time.Now().UnixNano()-int64((5*time.Second)) > dieAfter.RaceSession.StartTime && time.Now().UnixNano()-int64((6*time.Second)) < dieAfter.RaceSession.StartTime {
+		dieAfter.RaceSession.NeedsToDie = true
+		dieAfter.RaceSession.StartTime = time.Now().UnixNano()
+		dieAfter.RaceSession.ElapsedTicks = 100000000
+		return true
+	} else {
+		return false
+	}
 }
 
 func NewRaceSession() *RaceSession {
 	heap := make(govirtual.Memory, 30)
 	deadChannel := govirtual.NewChannelTerminationCondition()
-	race := RaceSession{&heap, deadChannel, 0.1, 0, nil, 0.0, 0.0, time.Now().UnixNano(), 0}
+	race := RaceSession{&heap, deadChannel, 0.1, 0, nil, 0.0, 0.0, time.Now().UnixNano(), 0, false}
 	return &race
 }
 
@@ -141,11 +160,11 @@ func (session *RaceSession) NextDriver() {
 
 func (session *RaceSession) StartSimulation() {
 	is := DefineInstructions(&session.Throttle, &session.SwitchState)
-	//terminationCondition := govirtual.OrTerminate(session.DeadChannel, session.DieAfter)
+	terminationCondition := govirtual.OrTerminate(session.DeadChannel, &DieAfterCondition{session})
 	breeder := *goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(15), goevolve.NewRandomBreeder(25, 100, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
 	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(10))
 	drivingEval := &DrivingEvaluator{session}
-	driverIsland.AddPopulation(session.Heap, nil, 8, is, session.DeadChannel, breeder, drivingEval, selector)
+	driverIsland.AddPopulation(session.Heap, nil, 8, is, terminationCondition, breeder, drivingEval, selector)
 }
 
 type DriverProgramGenerator struct{}
@@ -161,10 +180,8 @@ func (d *DriverProgramGenerator) Breed(seeds []string) []string {
 func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data interface{}, msg string) (err error) {
 	switch msgtype {
 	case "join":
-		log.Printf("Joined")
 		send_ping(writer)
 	case "gameStart":
-		log.Printf("%v", msg)
 		send_ping(writer)
 	case "crash":
 		//session.Crash()
@@ -182,6 +199,11 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		session.NextDriver()
 		return
 	case "carPositions":
+		if(session.NeedsToDie) {
+			session.NeedsToDie = false
+			err = errors.New("Needed to die!")
+			return
+		}
 		var position CarPositionMessage
 		json.Unmarshal([]byte(msg), &position)
 		//angle := position.Data[0].Angle
@@ -219,11 +241,14 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		json.Unmarshal([]byte(msg), &game)
 		session.Game = game
 		session.Throttle = 0
+		session.Velocity = 0
+		session.ElapsedTicks = 0
+		session.StartTime = time.Now().UnixNano()
 		send_ping(writer)
 	case "lapFinished":
 		send_ping(writer)
 	default:
-		log.Printf("Got msg type: %s: %v", msgtype, data)
+		//log.Printf("Got msg type: %s: %v", msgtype, data)
 		send_ping(writer)
 	}
 	return
@@ -266,12 +291,12 @@ func (session *RaceSession) bot_loop(conn net.Conn, name string, key string) (er
 	for {
 		input, msg, err := read_msg(reader)
 		if err != nil {
-			log_and_exit(err)
+			//log_and_exit(err)
 			return nil
 		}
 		err = session.parse_and_dispatch_input(writer, input, msg)
 		if err != nil {
-			log_and_exit(err)
+			//log_and_exit(err)
 			return nil
 		}
 	}
@@ -311,8 +336,8 @@ func main() {
 	fmt.Println("Connecting with parameters:")
 	fmt.Printf("host=%v, port=%v, bot name=%v, key=%v\n", host, port, name, key)
 
-	for x := 0; x < 5; x++ {
-		go func() {
+	for x := 0; x < 25; x++ {
+		go func(id int) {
 			session := NewRaceSession()
 			session.StartSimulation()
 
@@ -325,10 +350,10 @@ func main() {
 
 				defer conn.Close()
 
-				err = session.bot_loop(conn, name, key)
+				err = session.bot_loop(conn, name + strconv.Itoa(id), key)
 			}
 
-		}()
+		}(x)
 	}
 	go func() {
 		for {
