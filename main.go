@@ -110,12 +110,16 @@ type DrivingEvaluator struct {
 
 var driverIsland *goevolve.IslandEvolver = goevolve.NewIslandEvolver()
 
-func (eval *DrivingEvaluator) Evaluate(p *govirtual.Processor) int64 {
-	timePenalty := eval.RaceSession.ElapsedTicks * -1
+func (eval DrivingEvaluator) Evaluate(p *govirtual.Processor) int64 {
+	timePenalty := eval.RaceSession.ElapsedTicks
 	if timePenalty == 0 {
-		timePenalty = -10000000000
+		timePenalty = 10000000000
 	}
-	fmt.Println(timePenalty)
+	if timePenalty > 1000000 {
+		log.Printf("Reward for #%v: No Reward\n", p.Id)
+	} else {
+		log.Printf("Reward for #%v: %v\n", p.Id, timePenalty)
+	}
 	return timePenalty
 }
 
@@ -126,6 +130,7 @@ type RaceSession struct {
 	SwitchState  int
 	Game         *GameInitMessage
 	Velocity     float64
+	Angle        float64
 	LastPosition float64
 	StartTime    int64
 	ElapsedTicks int64
@@ -137,10 +142,11 @@ type DieAfterCondition struct {
 }
 
 func (dieAfter *DieAfterCondition) ShouldTerminate(p *govirtual.Processor) bool {
-	if dieAfter.RaceSession.Throttle < 0.00001 && time.Now().UnixNano()-int64((5*time.Second)) > dieAfter.RaceSession.StartTime && time.Now().UnixNano()-int64((6*time.Second)) < dieAfter.RaceSession.StartTime {
+	if time.Now().UnixNano() > dieAfter.RaceSession.StartTime+int64((10*60*time.Second)) || (dieAfter.RaceSession.Velocity < 0.00001 && time.Now().UnixNano()-int64((3*time.Second)) > dieAfter.RaceSession.StartTime && time.Now().UnixNano()-int64((4*time.Second)) < dieAfter.RaceSession.StartTime) {
 		dieAfter.RaceSession.NeedsToDie = true
 		dieAfter.RaceSession.StartTime = time.Now().UnixNano()
 		dieAfter.RaceSession.ElapsedTicks = 100000000
+		fmt.Println("Dead velocity:", dieAfter.RaceSession.Velocity)
 		return true
 	} else {
 		return false
@@ -150,7 +156,7 @@ func (dieAfter *DieAfterCondition) ShouldTerminate(p *govirtual.Processor) bool 
 func NewRaceSession() *RaceSession {
 	heap := make(govirtual.Memory, 30)
 	deadChannel := govirtual.NewChannelTerminationCondition()
-	race := RaceSession{&heap, deadChannel, 0.1, 0, nil, 0.0, 0.0, time.Now().UnixNano(), 0, false}
+	race := RaceSession{&heap, deadChannel, 0.1, 0, nil, 0.0, 0.0, 0.0, time.Now().UnixNano(), 0, false}
 	return &race
 }
 
@@ -161,9 +167,9 @@ func (session *RaceSession) NextDriver() {
 func (session *RaceSession) StartSimulation() {
 	is := DefineInstructions(&session.Throttle, &session.SwitchState)
 	terminationCondition := govirtual.OrTerminate(session.DeadChannel, &DieAfterCondition{session})
-	breeder := *goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(15), goevolve.NewRandomBreeder(25, 100, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
+	breeder := goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(15), goevolve.NewRandomBreeder(25, 100, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
 	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(10))
-	drivingEval := &DrivingEvaluator{session}
+	drivingEval := goevolve.Inverse(DrivingEvaluator{session})
 	driverIsland.AddPopulation(session.Heap, nil, 8, is, terminationCondition, breeder, drivingEval, selector)
 }
 
@@ -192,14 +198,14 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		var gameEnd GameEndMessage
 		json.Unmarshal([]byte(msg), &gameEnd)
 		err = errors.New("Game ended")
-		session.ElapsedTicks = int64(gameEnd.Data.Results[0].Result.Ticks)
+		session.ElapsedTicks = int64(gameEnd.Data.Results[0].Result.Ticks) + int64(gameEnd.Data.Results[0].Result.Millis)
 		if session.ElapsedTicks == 0 {
 			session.ElapsedTicks = 1000000000
 		}
 		session.NextDriver()
 		return
 	case "carPositions":
-		if(session.NeedsToDie) {
+		if session.NeedsToDie {
 			session.NeedsToDie = false
 			err = errors.New("Needed to die!")
 			return
@@ -210,11 +216,24 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		piece := session.Game.Data.Race.Track.Pieces[position.Data[0].PiecePosition.PieceIndex]
 		nextPiece := session.Game.Data.Race.Track.Pieces[(position.Data[0].PiecePosition.PieceIndex+1)%len(session.Game.Data.Race.Track.Pieces)]
 		pieceAfter := session.Game.Data.Race.Track.Pieces[(position.Data[0].PiecePosition.PieceIndex+2)%len(session.Game.Data.Race.Track.Pieces)]
-		session.Velocity = position.Data[0].PiecePosition.InPieceDistance - session.LastPosition
+
+		if position.Data[0].PiecePosition.InPieceDistance-session.LastPosition > 0 {
+			session.Velocity = position.Data[0].PiecePosition.InPieceDistance - session.LastPosition
+		}
+		lastAngle := session.Angle
+		if(lastAngle < 0){
+			lastAngle *= -1
+		}
+		session.Angle = position.Data[0].Angle
+		angle := session.Angle
+		if(angle < 0){
+			angle *= -1
+		}
+		angleDiff := angle - lastAngle
 		session.LastPosition = position.Data[0].PiecePosition.InPieceDistance
 		(*session.Heap)[0] = int(session.Throttle * 1000)
 		(*session.Heap)[1] = int(session.Velocity * 1000)
-		(*session.Heap)[2] = int(position.Data[0].Angle)
+		(*session.Heap)[2] = int(angleDiff)
 		(*session.Heap)[3] = int(position.Data[0].PiecePosition.InPieceDistance)
 		(*session.Heap)[4] = int(position.Data[0].PiecePosition.PieceIndex)
 		(*session.Heap)[5] = int(piece.Length)
@@ -226,6 +245,7 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		(*session.Heap)[11] = int(pieceAfter.Length)
 		(*session.Heap)[12] = int(pieceAfter.Angle)
 		(*session.Heap)[13] = int(pieceAfter.Radius)
+	
 		if session.SwitchState == -1 {
 			switch_left(writer)
 		} else if session.SwitchState == 1 {
@@ -242,13 +262,16 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		session.Game = game
 		session.Throttle = 0
 		session.Velocity = 0
+		session.Angle = 0
 		session.ElapsedTicks = 0
 		session.StartTime = time.Now().UnixNano()
 		send_ping(writer)
 	case "lapFinished":
 		send_ping(writer)
+	case "yourCar":
+		send_ping(writer)
 	default:
-		//log.Printf("Got msg type: %s: %v", msgtype, data)
+		log.Printf("Got msg type: %s: %v", msgtype, data)
 		send_ping(writer)
 	}
 	return
@@ -336,7 +359,7 @@ func main() {
 	fmt.Println("Connecting with parameters:")
 	fmt.Printf("host=%v, port=%v, bot name=%v, key=%v\n", host, port, name, key)
 
-	for x := 0; x < 25; x++ {
+	for x := 0; x < 10; x++ {
 		go func(id int) {
 			session := NewRaceSession()
 			session.StartSimulation()
@@ -350,7 +373,7 @@ func main() {
 
 				defer conn.Close()
 
-				err = session.bot_loop(conn, name + strconv.Itoa(id), key)
+				err = session.bot_loop(conn, name+strconv.Itoa(id), key)
 			}
 
 		}(x)
@@ -358,7 +381,7 @@ func main() {
 	go func() {
 		for {
 			out, _ := exec.Command("git", "pull").Output()
-			fmt.Printf("Git: %v", string(out))
+			log.Printf("Git: %v", string(out))
 			time.Sleep(60 * time.Second)
 		}
 	}()
