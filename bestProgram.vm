@@ -1,24 +1,33 @@
+:start
 set 0,1000,0
-set 1,1000,0
-set 2,200,0
-set 3,700,0
-set 4,0,0
+set 1,200,0
+set 2,80,0
+set 3,100,0
+set 9,7000,0
+set 11,1000,0
+set 10,30,0
+set 12,6100,0
+load 4,1,0
 load 5,5,0
 load 6,8,0
-jumpIfZero 5,14,0
-jumpIfZero 6,11,0
-setThrottle 0,0,0
-jump 0,0,0
-jumpIfZero 6,14,0
-setThrottle 1,0,0
-jump 0,0,0
-jumpIfZero 5,17,0
-setThrottle 2,0,0
-jump 0,0,0
 load 7,2,0
-noop 0,0,0
-jumpIfGreaterThan 7,4,22
-setThrottle 3,0,0
-jump 0,0,0
-setThrottle 7,0,0
-jump 0,0,0
+load 8,14,0
+abs 8
+jumpIfGreaterThan 8,10,:break
+jumpIfLessThan 4,12,:fullThrottle
+jumpIfZero 5,:inTurn
+jumpIfZero 6,:turnComing
+:fullThrottle
+setThrottle 0,0,0
+jump :start
+:turnComing
+jumpIfGreaterThan 4,9,:break
+setThrottle 0,0,0
+jump :start
+:inTurn
+jumpIfGreaterThan 7,3,:break
+setThrottle 11,0,0
+jump :start
+:break
+setThrottle 13
+jump :start
