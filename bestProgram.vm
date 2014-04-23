@@ -1,33 +1,113 @@
 :start
-set 0,1000,0
-set 1,200,0
-set 2,80,0
-set 3,100,0
-set 9,7000,0
-set 11,1000,0
-set 10,30,0
-set 12,6100,0
-load 4,1,0
-load 5,5,0
-load 6,8,0
-load 7,2,0
-load 8,14,0
-abs 8
-jumpIfGreaterThan 8,10,:break
-jumpIfLessThan 4,12,:fullThrottle
-jumpIfZero 5,:inTurn
-jumpIfZero 6,:turnComing
+jumpIfGreaterThan #2,30,:breaking
+jumpIfGreaterThan #1254,#843,:taxidermist
+jumpIfLessThan #1,5100,:fullThrottle
+jumpIfZero #5,:inTurn
+jumpIfZero #8,:turnComing
+jump :fullThrottle
 :fullThrottle
-setThrottle 0,0,0
-jump :start
+setThrottle 1000
+jump 7514,#8132,#4952
 :turnComing
-jumpIfGreaterThan 4,9,:break
-setThrottle 0,0,0
+jumpIfGreaterThan #1,7000,:breaking
+:peritonsillar
+dontSwitch
+dontSwitch
+jump :fullThrottle
+:breaking
+setThrottle #6024,#9560,7929
+jump :turnComing
+setThrottle 3890
+jumpIfZero 7160,:start
+noop :peritonsillar
+switchRight
+jumpIfLessThan #4979,#8656,:start
+jumpIfZero #1291,:turnComing
+jumpIfZero #5161
+jumpIfNotEquals #6299,#7069,:taxidermist
+jumpIfLessThan 7866,4733,:start
+jumpIfZero 1605,:start
+jumpIfZero 5193,:start
+call :fullThrottle
+switchRight 6900,9520,:peritonsillar
+:myxorrhea
+multiply 749,5746,#3817
+jumpIfZero #3065,:turnComing
+jumpIfZero #1476,:taxidermist
+modulos 2497,6074,#1670
+jumpIfNotEquals 4083,1872,:lisping
+noop
+switchRight
+switchLeft 8450,2384,#5456
+jumpIfZero 2208,:start
+switchLeft
+jumpIfLessThan 4346,#37,:myxorrhea
+return
+:grana
+call :peritonsillar
+:lisping
+jumpIfGreaterThan 995,#8802,:start
+return
+setThrottle 263,#5255,#7305
+jumpIfNotZero 7969,:myxorrhea
+call :start
+call :start
+jumpIfLessThan :turnComing
+jumpIfEquals 4231,#1832,:start
+dontSwitch
+jumpIfEquals #9503,3343,:start
 jump :start
-:inTurn
-jumpIfGreaterThan 7,3,:break
-setThrottle 11,0,0
+:peritonsillar
+switchRight
+call :start
+jumpIfNotEquals 8517,#3798,:start
+switchRight 
+modulos 8784,#7720,8890
+jumpIfNotEquals #1945,#164,:start
+noop 
+modulos #430,7065,6234
+setThrottle #9468
+jumpIfLessThan 5178,790,:start
+subtract #196,#6975,9117
+divide #8776,7652,#1537
+modulos 5111,5618,#1547
+add #7650,#9630,#759
+jumpIfNotZero #2809,:start
+jumpIfNotEquals 3488,#8600,:start
+turbo 
+divide 4773,5803,9496
+jumpIfNotEquals 8739,6569,:start
+multiply #2126,6674,#7785
+divide #4185,#6284,#9544
+noop 
+jumpIfEquals #962,#1598,:fullThrottle
+jumpIfNotEquals #3391,1844,:start
+call :start
+:taxidermist
+dontSwitch
+jumpIfNotEquals #4302,1023,:start
+return
+switchRight
+dontSwitch
+jumpIfZero #8851,:start
+jumpIfNotEquals #8891,#6822,:start
+jumpIfEquals 1663,1037,:start
+switchLeft
+dontSwitch
 jump :start
-:break
-setThrottle 13
+noop
 jump :start
+setThrottle #7708
+call :breaking
+jumpIfZero #4150,:start
+jumpIfGreaterThan #8783,#582,:start
+switchRight
+jumpIfNotEquals :start
+call :start
+jump :start
+noop
+jumpIfLessThan #7780,#7877,:start
+setThrottle #5804
+jumpIfLessThan #9158,#5732,:start
+jumpIfGreaterThan 20,8114,:breaking
+jumpIfEquals #3615,:taxidermist

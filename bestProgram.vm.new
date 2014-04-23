@@ -1,0 +1,19 @@
+:start
+jumpIfGreaterThan #2,50,:breaking
+jumpIfGreaterThan #14,30,:breaking
+jumpIfLessThan #1,5100,:fullThrottle
+jumpIfZero #5,:inTurn
+jumpIfZero #8,:turnComing
+jump :fullThrottle
+:fullThrottle
+setThrottle 1000
+jump :start
+:turnComing
+jumpIfGreaterThan #1,7000,:breaking
+jump :fullThrottle
+:inTurn
+jumpIfGreaterThan #2,50,:breaking
+jump :fullThrottle
+:breaking
+setThrottle 0
+jump :start

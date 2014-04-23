@@ -13,7 +13,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"time"
 )
@@ -35,6 +34,9 @@ func read_msg(reader *bufio.Reader) (msg interface{}, line string, err error) {
 	return
 }
 
+func send_turbo(writer *bufio.Writer) {
+	write_msg(writer, "turbo", "Pow!")
+}
 func write_msg(writer *bufio.Writer, msgtype string, data interface{}) (err error) {
 	m := make(map[string]interface{})
 	m["msgType"] = msgtype
@@ -82,26 +84,37 @@ func switch_right(writer *bufio.Writer) (err error) {
 	return
 }
 
-func DefineInstructions(throttle *float32, sw *int) (i *govirtual.InstructionSet) {
+func DefineInstructions(throttle *float32, sw *int, turbo *int) (i *govirtual.InstructionSet) {
 	i = govirtual.NewInstructionSet()
 	govirtual.EmulationInstructions(i)
-	i.Instruction("setThrottle", func(p *govirtual.Processor, m *govirtual.Memory) {
-		*throttle = float32(p.Registers.GetCardinal(m.Get(0))) / 1000.0
+	i.Instruction("setThrottle", func(p *govirtual.Processor, args ...govirtual.Pointer) govirtual.Memory {
+		defer func() {
+			recover()
+		}()
+		*throttle = float32(govirtual.Cardinalize(args[0].Get())) / 1000.0
 		if *throttle < 0 {
 			*throttle = 0
 		}
 		if *throttle > 1 {
 			*throttle = 1
 		}
-	})
-	i.Instruction("switchLeft", func(p *govirtual.Processor, m *govirtual.Memory) {
+		return nil
+	}, govirtual.Argument{"throttle", "int"})
+	i.Instruction("switchLeft", func(p *govirtual.Processor, args ...govirtual.Pointer) govirtual.Memory {
 		*sw = -1
+		return nil
 	})
-	i.Instruction("switchRight", func(p *govirtual.Processor, m *govirtual.Memory) {
+	i.Instruction("switchRight", func(p *govirtual.Processor, args ...govirtual.Pointer) govirtual.Memory {
 		*sw = 1
+		return nil
 	})
-	i.Instruction("dontSwitch", func(p *govirtual.Processor, m *govirtual.Memory) {
+	i.Instruction("dontSwitch", func(p *govirtual.Processor, args ...govirtual.Pointer) govirtual.Memory {
 		*sw = 0
+		return nil
+	})
+	i.Instruction("turbo", func(p *govirtual.Processor, args ...govirtual.Pointer) govirtual.Memory {
+		*turbo = 1
+		return nil
 	})
 
 	return
@@ -127,18 +140,21 @@ func (eval DrivingEvaluator) Evaluate(p *govirtual.Processor) int {
 }
 
 type RaceSession struct {
-	Heap         *govirtual.Memory
-	DeadChannel  *govirtual.ChannelTerminationCondition
-	Throttle     float32
-	SwitchState  int
-	Game         *GameInitMessage
-	Velocity     float64
-	Angle        float64
-	LastPosition float64
-	StartTime    int
-	ElapsedTicks int
-	NeedsToDie   bool
-	Cost         int
+	Heap           *govirtual.Memory
+	DeadChannel    *govirtual.ChannelTerminationCondition
+	Throttle       float32
+	SwitchState    int
+	Game           *GameInitMessage
+	Velocity       float64
+	Angle          float64
+	LastPosition   float64
+	StartTime      int
+	ElapsedTicks   int
+	NeedsToDie     bool
+	Cost           int
+	TurboOn        int
+	TurboAvailable int
+	SendTurbo      int
 }
 
 type DieAfterCondition struct {
@@ -161,7 +177,7 @@ func (dieAfter *DieAfterCondition) ShouldTerminate(p *govirtual.Processor) bool 
 func NewRaceSession() *RaceSession {
 	heap := make(govirtual.Memory, 30)
 	deadChannel := govirtual.NewChannelTerminationCondition()
-	race := RaceSession{&heap, deadChannel, 0.1, 0, nil, 0.0, 0.0, 0.0, goevolve.Now(), 0, false, 0}
+	race := RaceSession{&heap, deadChannel, 0.1, 0, nil, 0.0, 0.0, 0.0, goevolve.Now(), 0, false, 0, 0, 0, 0}
 	return &race
 }
 
@@ -170,9 +186,9 @@ func (session *RaceSession) NextDriver() {
 }
 
 func (session *RaceSession) StartSimulation() {
-	is := DefineInstructions(&session.Throttle, &session.SwitchState)
+	is := DefineInstructions(&session.Throttle, &session.SwitchState, &session.SendTurbo)
 	terminationCondition := govirtual.OrTerminate(session.DeadChannel, &DieAfterCondition{session})
-	breeder := goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(10) /*goevolve.NewRandomBreeder(25, 100, is),*/, goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
+	breeder := goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(10), goevolve.NewRandomBreeder(25, 100, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
 	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(10))
 	drivingEval := goevolve.Inverse(DrivingEvaluator{session})
 	driverIsland.AddPopulation(session.Heap, 16, is, terminationCondition, breeder, drivingEval, selector)
@@ -196,7 +212,7 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		send_ping(writer)
 	case "crash":
 		//session.Crash()
-		session.ElapsedTicks = 1000000000
+		session.ElapsedTicks = 10000000000
 		session.NextDriver()
 		err = errors.New("Crashed")
 		send_ping(writer)
@@ -237,34 +253,42 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 			angleDiff = session.Angle - lastAngle
 		}
 		session.LastPosition = position.Data[0].PiecePosition.InPieceDistance
-		(*session.Heap)[0] = int(session.Throttle * 1000)
-		(*session.Heap)[1] = int(session.Velocity * 1000)
-		(*session.Heap)[2] = int(angleDiff * 100)
-		(*session.Heap)[3] = int(position.Data[0].PiecePosition.InPieceDistance)
-		(*session.Heap)[4] = int(position.Data[0].PiecePosition.PieceIndex)
-		(*session.Heap)[5] = int(piece.Length)
-		(*session.Heap)[6] = int(piece.Angle)
-		(*session.Heap)[7] = int(piece.Radius)
-		(*session.Heap)[8] = int(nextPiece.Length)
-		(*session.Heap)[9] = int(nextPiece.Angle)
-		(*session.Heap)[10] = int(nextPiece.Radius)
-		(*session.Heap)[11] = int(pieceAfter.Length)
-		(*session.Heap)[12] = int(pieceAfter.Angle)
-		(*session.Heap)[13] = int(pieceAfter.Radius)
-		(*session.Heap)[14] = int(session.Angle)
+		(*session.Heap)[0].Set(&govirtual.Literal{int(session.Throttle * 1000)})
+		(*session.Heap)[1].Set(&govirtual.Literal{int(session.Velocity * 1000)})
+		(*session.Heap)[2].Set(&govirtual.Literal{int(angleDiff * 100)})
+		(*session.Heap)[3].Set(&govirtual.Literal{int(position.Data[0].PiecePosition.InPieceDistance)})
+		(*session.Heap)[4].Set(&govirtual.Literal{int(position.Data[0].PiecePosition.PieceIndex)})
+		(*session.Heap)[5].Set(&govirtual.Literal{int(piece.Length)})
+		(*session.Heap)[6].Set(&govirtual.Literal{int(piece.Angle)})
+		(*session.Heap)[7].Set(&govirtual.Literal{int(piece.Radius)})
+		(*session.Heap)[8].Set(&govirtual.Literal{int(nextPiece.Length)})
+		(*session.Heap)[9].Set(&govirtual.Literal{int(nextPiece.Angle)})
+		(*session.Heap)[10].Set(&govirtual.Literal{int(nextPiece.Radius)})
+		(*session.Heap)[11].Set(&govirtual.Literal{int(pieceAfter.Length)})
+		(*session.Heap)[12].Set(&govirtual.Literal{int(pieceAfter.Angle)})
+		(*session.Heap)[13].Set(&govirtual.Literal{int(pieceAfter.Radius)})
+		(*session.Heap)[14].Set(&govirtual.Literal{int(session.Angle)})
+		(*session.Heap)[15].Set(&govirtual.Literal{int(session.TurboOn)})
+		(*session.Heap)[16].Set(&govirtual.Literal{int(session.TurboAvailable)})
+		(*session.Heap)[17].Set(&govirtual.Literal{int(session.SendTurbo)})
 		//fmt.Print(msg)
-		fmt.Println((*session.Heap)[1], (*session.Heap)[2], piece.Length, nextPiece.Length, session.Throttle)
 		ms, _ := time.ParseDuration("10ms")
 		cost := session.Cost
 		for cost+20 < session.Cost {
 			time.Sleep(ms)
 		}
+		//fmt.Println((*session.Heap)[1], (*session.Heap)[2], piece.Length, nextPiece.Length, session.Throttle)
 		if session.SwitchState == -1 {
 			switch_left(writer)
 		} else if session.SwitchState == 1 {
 			switch_right(writer)
 		}
 		session.SwitchState = 0
+		if session.SendTurbo == 1 && session.TurboAvailable == 1 {
+			session.SendTurbo = 0
+			session.TurboAvailable = 0
+			send_turbo(writer)
+		}
 		send_throttle(writer, session.Throttle)
 	case "error":
 		log.Printf(fmt.Sprintf("Got error: %v", data))
@@ -278,12 +302,25 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		session.Angle = 0
 		session.ElapsedTicks = 0
 		session.Cost = 0
+		session.TurboOn = 0
+		session.TurboAvailable = 0
+		session.SendTurbo = 0
 		session.StartTime = goevolve.Now()
+		session.Heap.Zero()
 		send_ping(writer)
 	case "lapFinished":
 		send_ping(writer)
 	case "yourCar":
 		send_ping(writer)
+	case "turboAvailable":
+		send_ping(writer)
+		session.TurboAvailable = 1
+	case "turboStart":
+		send_ping(writer)
+		session.TurboOn = 1
+	case "turboEnd":
+		send_ping(writer)
+		session.TurboOn = 0
 	default:
 		log.Printf("Got msg type: %s: %v", msgtype, data)
 		send_ping(writer)
@@ -362,8 +399,6 @@ func log_and_exit(err error) {
 }
 
 func main() {
-
-	runtime.GOMAXPROCS(4)
 	host, port, name, key, err := parse_args()
 
 	if err != nil {
@@ -374,21 +409,36 @@ func main() {
 	fmt.Println("Connecting with parameters:")
 	fmt.Printf("host=%v, port=%v, bot name=%v, key=%v\n", host, port, name, key)
 
-	for x := 0; x < 1; x++ {
+	for x := 0; x < 10; x++ {
 		go func(id int) {
 			session := NewRaceSession()
 			session.StartSimulation()
-
+			c := make(chan bool)
 			for {
-				conn, err := connect(host, port)
+				go func() {
+					defer func() {
+						recover()
+						c <- true
+					}()
+					session.StartTime = goevolve.Now()
+					conn, err := connect(host, port)
+					session.StartTime = goevolve.Now()
+	
+					if err != nil {
+						log_and_exit(err)
+						return
+					}
 
-				if err != nil {
-					log_and_exit(err)
-				}
+					defer func() {
+						defer func(){
+							recover()
+						}()
+						conn.Close()
+					}()
 
-				defer conn.Close()
-
-				err = session.bot_loop(conn, name+strconv.Itoa(id), key)
+					err = session.bot_loop(conn, name+strconv.Itoa(id), key)
+				}()
+				<-c
 			}
 
 		}(x)
