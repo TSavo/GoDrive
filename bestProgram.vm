@@ -1,113 +1,101 @@
 :start
-jumpIfGreaterThan #2,30,:breaking
-jumpIfGreaterThan #1254,#843,:taxidermist
-jumpIfLessThan #1,5100,:fullThrottle
+jumpIfGreaterThan #2,100,:breaking
+jumpIfLessThan #1,6100,:fullThrottle
+jumpIfGreaterThan #14,30,:breaking
 jumpIfZero #5,:inTurn
 jumpIfZero #8,:turnComing
 jump :fullThrottle
 :fullThrottle
 setThrottle 1000
-jump 7514,#8132,#4952
+jump :start
 :turnComing
-jumpIfGreaterThan #1,7000,:breaking
-:peritonsillar
-dontSwitch
-dontSwitch
+jumpIfGreaterThan #1,7100,:breaking
+jump :fullThrottle
+:inTurn
+jumpIfGreaterThan #2,50,:breaking
 jump :fullThrottle
 :breaking
-setThrottle #6024,#9560,7929
-jump :turnComing
-setThrottle 3890
-jumpIfZero 7160,:start
-noop :peritonsillar
-switchRight
-jumpIfLessThan #4979,#8656,:start
-jumpIfZero #1291,:turnComing
-jumpIfZero #5161
-jumpIfNotEquals #6299,#7069,:taxidermist
-jumpIfLessThan 7866,4733,:start
-jumpIfZero 1605,:start
-jumpIfZero 5193,:start
-call :fullThrottle
-switchRight 6900,9520,:peritonsillar
-:myxorrhea
-multiply 749,5746,#3817
-jumpIfZero #3065,:turnComing
-jumpIfZero #1476,:taxidermist
-modulos 2497,6074,#1670
-jumpIfNotEquals 4083,1872,:lisping
-noop
-switchRight
-switchLeft 8450,2384,#5456
-jumpIfZero 2208,:start
-switchLeft
-jumpIfLessThan 4346,#37,:myxorrhea
-return
-:grana
-call :peritonsillar
-:lisping
-jumpIfGreaterThan 995,#8802,:start
-return
-setThrottle 263,#5255,#7305
-jumpIfNotZero 7969,:myxorrhea
-call :start
-call :start
-jumpIfLessThan :turnComing
-jumpIfEquals 4231,#1832,:start
-dontSwitch
-jumpIfEquals #9503,3343,:start
+setThrottle 0
 jump :start
-:peritonsillar
-switchRight
-call :start
-jumpIfNotEquals 8517,#3798,:start
-switchRight 
-modulos 8784,#7720,8890
-jumpIfNotEquals #1945,#164,:start
-noop 
-modulos #430,7065,6234
-setThrottle #9468
-jumpIfLessThan 5178,790,:start
-subtract #196,#6975,9117
-divide #8776,7652,#1537
-modulos 5111,5618,#1547
-add #7650,#9630,#759
-jumpIfNotZero #2809,:start
-jumpIfNotEquals 3488,#8600,:start
+
+divide #6335,4284,#9532
+dontSwitch 
+jumpIfGreaterThan #9667,3239,:start
 turbo 
-divide 4773,5803,9496
-jumpIfNotEquals 8739,6569,:start
-multiply #2126,6674,#7785
-divide #4185,#6284,#9544
-noop 
-jumpIfEquals #962,#1598,:fullThrottle
-jumpIfNotEquals #3391,1844,:start
+add #1527,275,2006
+jumpIfZero #7165,:start
+setThrottle 9069
+jumpIfLessThan 4156,#5335,:start
+switchRight 
+turbo 
+switchRight 
+dontSwitch 
+setThrottle #6491
+switchRight 
+return 
+jumpIfEquals #5664,399,:start
+modulos 3253,#8398,#8024
 call :start
-:taxidermist
-dontSwitch
-jumpIfNotEquals #4302,1023,:start
-return
-switchRight
-dontSwitch
-jumpIfZero #8851,:start
-jumpIfNotEquals #8891,#6822,:start
-jumpIfEquals 1663,1037,:start
-switchLeft
-dontSwitch
+switchLeft 
+dontSwitch 
+jumpIfEquals #5542,4063,:start
+turbo 
 jump :start
-noop
-jump :start
-setThrottle #7708
-call :breaking
-jumpIfZero #4150,:start
-jumpIfGreaterThan #8783,#582,:start
-switchRight
-jumpIfNotEquals :start
+divide #1788,1775,1573
+jumpIfNotEquals #9137,#5232,:start
+jumpIfEquals 7749,6459,:start
+jumpIfNotEquals 1302,2581,:start
+subtract 754,#7115,#8969
 call :start
-jump :start
-noop
-jumpIfLessThan #7780,#7877,:start
-setThrottle #5804
-jumpIfLessThan #9158,#5732,:start
-jumpIfGreaterThan 20,8114,:breaking
-jumpIfEquals #3615,:taxidermist
+subtract 9665,#6183,6303
+call :start
+divide #7983,5526,4133
+subtract 18,#939,#9518
+dontSwitch 
+jumpIfNotEquals #6503,#75,:start
+return 
+jumpIfZero 6535,:start
+multiply 828,1039,6069
+jumpIfNotEquals 1152,#800,:start
+jumpIfLessThan #3855,9015,:start
+divide #199,4930,#8467
+multiply #5615,2132,#6717
+jumpIfEquals 2144,5783,:start
+multiply #7339,7244,8927
+jumpIfLessThan 4550,#8401,:start
+subtract 1807,#4912,#704
+jumpIfLessThan #8934,3090,:start
+divide 268,#4963,1636
+call :start
+return 
+jumpIfNotEquals #1871,2534,:start
+add #7471,3545,#323
+dontSwitch 
+dontSwitch 
+jumpIfNotZero #8754,:start
+call :start
+jumpIfNotEquals 9063,1947,:start
+add #8492,531,#3860
+return 
+jumpIfGreaterThan 9408,#9745,:start
+return 
+add #804,#1145,3221
+jumpIfEquals 7909,#4277,:start
+return 
+modulos #992,4650,8519
+multiply 870,#8052,#4683
+jumpIfZero 5474,:start
+subtract 184,#576,#5798
+turbo 
+switchLeft 
+jumpIfNotEquals 4244,#9617,:start
+switchRight 
+jumpIfZero 1281,:start
+add #4553,7483,6787
+jumpIfGreaterThan 8081,#8030,:start
+jumpIfNotZero #8961,:start
+switchLeft 
+setThrottle #6925
+add #4724,#4022,#749
+subtract #8999,#1977,#2425
+setThrottle 450
