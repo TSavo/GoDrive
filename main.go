@@ -188,7 +188,7 @@ func (session *RaceSession) NextDriver() {
 func (session *RaceSession) StartSimulation() {
 	is := DefineInstructions(&session.Throttle, &session.SwitchState, &session.SendTurbo)
 	terminationCondition := govirtual.OrTerminate(session.DeadChannel, &DieAfterCondition{session})
-	breeder := goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(10), goevolve.NewRandomBreeder(25, 100, is), goevolve.NewMutationBreeder(25, 0.1, is), goevolve.NewCrossoverBreeder(25))
+	breeder := goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(10), goevolve.NewRandomBreeder(10, 100, is), goevolve.NewMutationBreeder(10, 0.051, is), goevolve.NewMutationBreeder(10, 0.1, is), goevolve.NewMutationBreeder(10, 0.2, is), goevolve.NewMutationBreeder(10, 0.3, is))//, goevolve.NewCrossoverBreeder(25))
 	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(10))
 	drivingEval := goevolve.Inverse(DrivingEvaluator{session})
 	driverIsland.AddPopulation(session.Heap, 16, is, terminationCondition, breeder, drivingEval, selector)

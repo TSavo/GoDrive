@@ -10,92 +10,9 @@ setThrottle 1000
 jump :start
 :turnComing
 jumpIfGreaterThan #1,7100,:breaking
-jump :fullThrottle
 :inTurn
 jumpIfGreaterThan #2,50,:breaking
 jump :fullThrottle
 :breaking
 setThrottle 0
 jump :start
-
-divide #6335,4284,#9532
-dontSwitch 
-jumpIfGreaterThan #9667,3239,:start
-turbo 
-add #1527,275,2006
-jumpIfZero #7165,:start
-setThrottle 9069
-jumpIfLessThan 4156,#5335,:start
-switchRight 
-turbo 
-switchRight 
-dontSwitch 
-setThrottle #6491
-switchRight 
-return 
-jumpIfEquals #5664,399,:start
-modulos 3253,#8398,#8024
-call :start
-switchLeft 
-dontSwitch 
-jumpIfEquals #5542,4063,:start
-turbo 
-jump :start
-divide #1788,1775,1573
-jumpIfNotEquals #9137,#5232,:start
-jumpIfEquals 7749,6459,:start
-jumpIfNotEquals 1302,2581,:start
-subtract 754,#7115,#8969
-call :start
-subtract 9665,#6183,6303
-call :start
-divide #7983,5526,4133
-subtract 18,#939,#9518
-dontSwitch 
-jumpIfNotEquals #6503,#75,:start
-return 
-jumpIfZero 6535,:start
-multiply 828,1039,6069
-jumpIfNotEquals 1152,#800,:start
-jumpIfLessThan #3855,9015,:start
-divide #199,4930,#8467
-multiply #5615,2132,#6717
-jumpIfEquals 2144,5783,:start
-multiply #7339,7244,8927
-jumpIfLessThan 4550,#8401,:start
-subtract 1807,#4912,#704
-jumpIfLessThan #8934,3090,:start
-divide 268,#4963,1636
-call :start
-return 
-jumpIfNotEquals #1871,2534,:start
-add #7471,3545,#323
-dontSwitch 
-dontSwitch 
-jumpIfNotZero #8754,:start
-call :start
-jumpIfNotEquals 9063,1947,:start
-add #8492,531,#3860
-return 
-jumpIfGreaterThan 9408,#9745,:start
-return 
-add #804,#1145,3221
-jumpIfEquals 7909,#4277,:start
-return 
-modulos #992,4650,8519
-multiply 870,#8052,#4683
-jumpIfZero 5474,:start
-subtract 184,#576,#5798
-turbo 
-switchLeft 
-jumpIfNotEquals 4244,#9617,:start
-switchRight 
-jumpIfZero 1281,:start
-add #4553,7483,6787
-jumpIfGreaterThan 8081,#8030,:start
-jumpIfNotZero #8961,:start
-switchLeft 
-setThrottle #6925
-add #4724,#4022,#749
-subtract #8999,#1977,#2425
-setThrottle 450
