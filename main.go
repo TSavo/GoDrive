@@ -301,6 +301,9 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 	case "error":
 		log.Printf(fmt.Sprintf("Got error: %v", data))
 		send_ping(writer)
+		session.StartTime = goevolve.Now()
+		time.Sleep(time.Second * 4)
+		session.StartTime = goevolve.Now()
 	case "gameInit":
 		game := new(GameInitMessage)
 		json.Unmarshal([]byte(msg), &game)
@@ -417,7 +420,7 @@ func main() {
 	fmt.Println("Connecting with parameters:")
 	fmt.Printf("host=%v, port=%v, bot name=%v, key=%v\n", host, port, name, key)
 
-	for x := 0; x < 10; x++ {
+	for x := 0; x < 1; x++ {
 		go func(id int) {
 			session := NewRaceSession()
 			session.StartSimulation()
