@@ -24,4 +24,5 @@ jumpIfGreaterThan #2,50,:breaking
 jump :fullThrottle
 :breaking
 setThrottle 0
-jump
+jump :start
+
