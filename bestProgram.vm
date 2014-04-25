@@ -1,18 +1,27 @@
 :start
-jumpIfGreaterThan #2,100,:breaking
+:inTurn
 jumpIfLessThan #1,6100,:fullThrottle
-jumpIfGreaterThan #14,30,:breaking
-jumpIfZero #5,:inTurn
+jumpIfGreaterThan 6826,8091,:breaking
+jumpIfZero 650,:inTurn
 jumpIfZero #8,:turnComing
-jump :fullThrottle
+switchRight
+jumpIfEquals 1126,5012,:inTurn
+modulos #1990,#3838,6499
+return
+dontSwitch
+jump 8517,8870,:hyphen:falsifiable
+turbo
+jumpIfGreaterThan #2561,8820,:fullThrottle
+jumpIfNotEquals 7638,#434,:fullThrottle
+:hyphen:falsifiable
 :fullThrottle
 setThrottle 1000
 jump :start
 :turnComing
 jumpIfGreaterThan #1,7100,:breaking
-:inTurn
+:falsifiable
 jumpIfGreaterThan #2,50,:breaking
 jump :fullThrottle
 :breaking
 setThrottle 0
-jump :start
+jump

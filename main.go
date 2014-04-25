@@ -188,8 +188,8 @@ func (session *RaceSession) NextDriver() {
 func (session *RaceSession) StartSimulation() {
 	is := DefineInstructions(&session.Throttle, &session.SwitchState, &session.SendTurbo)
 	terminationCondition := govirtual.OrTerminate(session.DeadChannel, &DieAfterCondition{session})
-	breeder := goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(10), goevolve.NewRandomBreeder(10, 100, is), goevolve.NewMutationBreeder(10, 0.051, is), goevolve.NewMutationBreeder(10, 0.1, is), goevolve.NewMutationBreeder(10, 0.2, is), goevolve.NewMutationBreeder(10, 0.3, is))//, goevolve.NewCrossoverBreeder(25))
-	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(10))
+	breeder := goevolve.Breeders(new(DriverProgramGenerator), goevolve.NewCopyBreeder(50), goevolve.NewRandomBreeder(10, 100, is), goevolve.NewMutationBreeder(50, 0.051, is), goevolve.NewMutationBreeder(50, 0.1, is), goevolve.NewMutationBreeder(50, 0.2, is), goevolve.NewMutationBreeder(50, 0.3, is), goevolve.NewCrossoverBreeder(50))
+	selector := goevolve.AndSelect(goevolve.TopX(10), goevolve.Tournament(40))
 	drivingEval := goevolve.Inverse(DrivingEvaluator{session})
 	driverIsland.AddPopulation(session.Heap, 16, is, terminationCondition, breeder, drivingEval, selector)
 }
@@ -229,6 +229,14 @@ func (session *RaceSession) Dispatch(writer *bufio.Writer, msgtype string, data 
 		session.NextDriver()
 		return
 	case "carPositions":
+
+		session.ElapsedTicks++
+		if session.ElapsedTicks > 8 && session.Velocity < 0.1 {
+			err = errors.New("Needed to die!")
+			session.ElapsedTicks = 10000000000
+			session.NextDriver()
+			return
+		}
 		if session.NeedsToDie {
 			session.NeedsToDie = false
 			err = errors.New("Needed to die!")
@@ -423,14 +431,14 @@ func main() {
 					session.StartTime = goevolve.Now()
 					conn, err := connect(host, port)
 					session.StartTime = goevolve.Now()
-	
+
 					if err != nil {
 						log_and_exit(err)
 						return
 					}
 
 					defer func() {
-						defer func(){
+						defer func() {
 							recover()
 						}()
 						conn.Close()
