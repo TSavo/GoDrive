@@ -11,7 +11,7 @@ return
 dontSwitch
 jump 8517,8870,:hyphen:falsifiable
 turbo
-jumpIfGreaterThan #2561,8820,:fullThrottle
+jumpIfGreaterThan #3247,8819,#4936
 jumpIfNotEquals 7638,#434,:fullThrottle
 :hyphen:falsifiable
 :fullThrottle
@@ -25,4 +25,133 @@ jump :fullThrottle
 :breaking
 setThrottle 0
 jump :start
-
+jumpIfGreaterThan 449,8950,3888
+subtract
+add #8237,:start
+switchLeft
+call :start
+add 3635,4501,#4709
+switchLeft
+turbo 5244,:start
+jump :bobbins
+divide 724,6467,2423
+modulos 7664,#8862,2254
+jumpIfNotEquals #350,4382,:start
+jumpIfGreaterThan 1780,#7304,:start
+switchLeft
+add #1159,8233,7986
+switchLeft
+jumpIfZero #3821,:start
+return 497,:start
+modulos #9025,#3257,#1304
+turbo
+jumpIfNotZero #5906,:start
+jumpIfLessThan #8968,5056,:polyorchis
+return
+multiply 8937,3205,#7796
+:bobbinsdontSwitch
+:tertium
+turbo
+jumpIfNotZero 3377,:bobbins
+switchRight
+call :bobbinsdontSwitch
+jump :polyorchis
+call :tertium
+add #1420,8369,4516
+return 7460
+call :amylene
+jumpIfEquals #4420,6793,:bobbins
+modulos #4327
+divide 2236,#5696,#4183
+jump :start
+jumpIfEquals 3475,6398,:start
+jumpIfGreaterThan
+switchLeft
+:admiring
+dontSwitch
+turbo
+jumpIfZero 6144,:start
+jumpIfEquals #4983,1015,:turnComing
+jumpIfEquals #7557,#2847,:start
+:bobbins
+jumpIfNotEquals 8909,#1327,:insatiate
+jumpIfGreaterThan #4477,#3370,:bobbins
+call :clavated
+turbo #8699,#948,5690
+return #9150,:clavated
+noop
+jump
+add
+turbo
+call :start
+return
+multiply 1441,7606,#6716
+subtract 5498,7355,#2434
+jumpIfZero
+divide 5349,8196,#9778
+:amylene
+noop
+subtract #2074,#9300,#8778
+subtract #2888,165,#4672
+switchLeft 
+subtract 3827,9470,2706
+jumpIfGreaterThan #2508,#3947,:polyorchis
+divide #3482,#3070,#2732
+dontSwitch 2047,:amylene
+jumpIfGreaterThan #8423,#4234,:start
+jump :start
+modulos 8184,951,636
+switchRight
+turbo
+return
+switchRight 
+setThrottle #3623,3738,#7176
+jumpIfLessThan 1197,5426,:bobbins
+turbo
+modulos #3209,9259,8660
+divide 6061,7765,#7019
+noop
+:admiring
+:clavated
+jumpIfLessThan #9138,#6951,:insatiate
+jumpIfGreaterThan #6853,#4965,:insatiate
+jump :start
+jumpIfNotZero
+jumpIfEquals 7405,#1885,:start
+return #1689,#7857,#8191
+turbo
+subtract 1423,#9054,#5829
+return
+jumpIfNotZero 7832,:start
+return 8473,7300,:polyorchis
+return
+jumpIfZero 1416,:start
+jumpIfZero 7759,:start
+switchLeft 
+subtract #8256,#4143,#7965
+divide #691,#1267,#8785
+switchRight
+add 9092,#9677,8666
+:bobbins
+turbo :inTurn
+add 2485,#3069,#5113
+turbo
+jumpIfLessThan 3999,1178,:clavated
+jump :insatiate
+jumpIfNotEquals 9428,309,:start
+divide
+setThrottle #8206
+jumpIfZero 5779,:start
+jumpIfGreaterThan 3204,#8921,:start
+jumpIfZero 4034,:start
+jumpIfNotZero 2228,6004,:inTurn
+jumpIfNotEquals #2312,#6389,:start
+switchLeft
+switchLeft
+call :start
+modulos 
+jumpIfLessThan #6692,#8687,:start
+turbo 9716,9857,851
+noop
+jumpIfLessThan 4842,#8183,:start
+subtract 1285,#8722,5851
